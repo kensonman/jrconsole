@@ -4,6 +4,7 @@
 package hk.idv.kenson.jrconsole;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -19,10 +20,13 @@ import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
+import net.sf.jasperreports.engine.DefaultJasperReportsContext;
 import net.sf.jasperreports.engine.JRDataSource;
 import net.sf.jasperreports.engine.JRException;
+import net.sf.jasperreports.engine.JRExporterParameter;
 import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperExportManager;
 import net.sf.jasperreports.engine.JasperFillManager;
@@ -31,6 +35,7 @@ import net.sf.jasperreports.engine.JasperReport;
 import net.sf.jasperreports.engine.data.JRCsvDataSource;
 import net.sf.jasperreports.engine.data.JRXmlDataSource;
 import net.sf.jasperreports.engine.data.JsonDataSource;
+import net.sf.jasperreports.engine.export.oasis.JROdtExporter;
 import net.sf.jasperreports.engine.util.JRLoader;
 
 import org.apache.commons.logging.Log;
@@ -56,6 +61,9 @@ public class Console {
 	 */
 	private static void checkParam(Map<String, Object> params)throws IllegalArgumentException{
 		log.debug("Checking runtime parameters...");
+		//Checking locale
+		if(params.get("locale")==null)
+			params.put("locale", Locale.getDefault());
 		//Checking the data-source
 		if(params.get("source")==null)throw new IllegalArgumentException("Please specify the data-source");
 		if(params.get("type")==null)params.put("type", "jdbc");
@@ -87,9 +95,8 @@ public class Console {
 			params.put("output", System.getProperty("user.dir")+"/output.pdf");
 		File output=new File(params.get("output").toString());
 		if(output.exists() && !output.canWrite())throw new IllegalArgumentException("output \""+params.get("output")+"\" cannot be overwrited");
-		if(!output.canWrite())throw new IllegalArgumentException("output \""+params.get("output")+"\" is not writable");
 	}
-
+	
 	/**
 	 * Copy the data from ips into ops.
 	 * @param ips
@@ -103,7 +110,7 @@ public class Console {
         while( (noOfBytes = ips.read(b)) != -1 )
         	ops.write(b, 0, noOfBytes);
 	}
-	
+
 	/**
 	 * @return the dateFormat
 	 */
@@ -115,7 +122,7 @@ public class Console {
 		}
 		return dateFormat;
 	}
-
+	
 	/**
 	 * @return the decimalFormat
 	 */
@@ -126,6 +133,40 @@ public class Console {
 			decimalFormat=new DecimalFormat(format);
 		}
 		return decimalFormat;
+	}
+
+	/**
+	 * 
+	 * @param localeString
+	 * @return
+	 */
+	private static Locale getLocale(String localeString){
+		if("default".equals(localeString))return Locale.getDefault();
+		if("canada".equals(localeString))return Locale.CANADA;
+		if("canada_french".equals(localeString))return Locale.CANADA_FRENCH;
+		if("china".equals(localeString))return Locale.CHINA;
+		if("chinese".equals(localeString))return Locale.CHINESE;
+		if("english".equals(localeString))return Locale.ENGLISH;
+		if("franch".equals(localeString))return Locale.FRANCE;
+		if("german".equals(localeString))return Locale.GERMAN;
+		if("germany".equals(localeString))return Locale.GERMANY;
+		if("italian".equals(localeString))return Locale.ITALIAN;
+		if("italy".equals(localeString))return Locale.ITALY;
+		if("japan".equals(localeString))return Locale.JAPAN;
+		if("japanese".equals(localeString))return Locale.JAPANESE;
+		if("korea".equals(localeString))return Locale.KOREA;
+		if("korean".equals(localeString))return Locale.KOREAN;
+		if("prc".equals(localeString))return Locale.PRC;
+		if("simplified_chinese".equals(localeString))return Locale.SIMPLIFIED_CHINESE;
+		if("taiwan".equals(localeString))return Locale.TAIWAN;
+		if("traditional_chinese".equals(localeString))return Locale.TRADITIONAL_CHINESE;
+		if("uk".equals(localeString))return Locale.UK;
+		if("us".equals(localeString))return Locale.US;
+		
+		String parts[] = localeString.split("_", -1);
+	    if (parts.length == 1) return new Locale(parts[0]);
+	    else if (parts.length == 2) return new Locale(parts[0], parts[1]);
+	    else return new Locale(parts[0], parts[1], parts[2]);
 	}
 	
 	/**
@@ -210,6 +251,7 @@ public class Console {
 				if(arg.startsWith("decimal:"))return getDecimalFormat().parse(arg.substring(8));
 				if(arg.startsWith("stream:"))return new URL(arg.substring(7)).openStream();
 				if(arg.startsWith("string:"))return arg.substring(7);
+				if(arg.startsWith("locale:"))return getLocale(arg.substring(7));
 				return arg;
 			} catch (MalformedURLException e) {
 				throw new ParseException("Cannot create the url: "+arg.substring(4), 0);
@@ -291,6 +333,14 @@ public class Console {
 			String type=params.get("outputtype").toString();
 			if("pdf".equals(type))
 				result = JasperExportManager.exportReportToPdf(report);
+			else if("odt".equals(type)){
+				ByteArrayOutputStream baos = new ByteArrayOutputStream();
+				JROdtExporter exporter = new JROdtExporter(DefaultJasperReportsContext.getInstance());
+				exporter.setParameter(JRExporterParameter.JASPER_PRINT, report);
+				exporter.setParameter(JRExporterParameter.OUTPUT_STREAM, baos);
+				exporter.exportReport();
+				return new ByteArrayInputStream(baos.toByteArray());
+			}
 			
 			if(result==null)throw new UnsupportedOperationException("output-type \""+type+"\" is not supported");
 		} catch (JRException ex) {
@@ -307,7 +357,7 @@ public class Console {
 	 * @return The filled report
 	 */
 	private static JasperPrint stepFill(JasperReport report, Map<String, Object> params){
-		log.info("Filling report...");
+		log.info("Filling report (with locale: "+params.get("locale")+")...");
 		
 		try {
 			if(params.get("driver")!=null)

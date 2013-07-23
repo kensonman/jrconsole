@@ -102,12 +102,12 @@ public class Console {
 		//Checking the locale and bundle
 		try{
 			if(params.get("locale")!=null)
-				params.put(PARAM_LOCALE, parseVal(params.remove("locale").toString(), null));
+				params.put(PARAM_LOCALE, getLocale(params.remove("locale").toString()));
 			if(params.get(PARAM_LOCALE)==null)
 				params.put(PARAM_LOCALE, Locale.getDefault());
 			if(params.get("bundle")!=null)
-				params.put(PARAM_BUNDLE, parseVal(params.get("bundle").toString(), params));
-		}catch(Exception ex){throw new IllegalArgumentException("Error when reading properties/locale/resource-bundle");}
+				params.put(PARAM_BUNDLE, parseVal("bundle:"+params.get("bundle"), params));
+		}catch(Exception ex){throw new IllegalArgumentException("Error when reading properties/locale/resource-bundle", ex);}
 	}
 	
 	/**
@@ -246,6 +246,7 @@ public class Console {
 		}catch(IllegalArgumentException ex){
 			printUsage();
 			System.err.println("Error: "+ex.getMessage());
+			ex.printStackTrace();
 		}catch(RuntimeException ex){
 			throw ex;
 		}catch(Exception ex){
@@ -303,7 +304,7 @@ public class Console {
 				if(arg.startsWith("bundle:")){
 					Object locale=params.get(PARAM_LOCALE);
 					if(locale==null)locale=Locale.getDefault();
-					if(locale instanceof Locale)throw new IllegalArgumentException("parameter["+PARAM_LOCALE+"] is reserved for the locale specification. ");
+					if(!(locale instanceof Locale))throw new IllegalArgumentException("parameter["+PARAM_LOCALE+"] is reserved for the locale specification. ");
 					return getBundle(arg.substring(7), (Locale)locale);
 				}
 				return arg;

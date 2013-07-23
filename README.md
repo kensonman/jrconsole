@@ -39,7 +39,16 @@ Due to JasperReport required the parameter in java classes, the JRConsole will p
 
 #### Supported Parameter Types:
 
-   boolean, int, long, double, url, date, decimal, stream, string, properties
+- boolean: true|false
+- int: An integer
+- long: A long integer
+- double: A double floating number
+- url: An instance of java.lang.URL
+- date: An instance of java.util.Date. Parsing by "dateFormat" system property
+- decimal: A number that parsing by "decimalFormat" system property
+- stream: A stream opened by URL
+- string: A String
+- properties: The properties
 
 * Date Format can be specified by system property "dateFormat". Default is: yyyy-MM-dd
 * Decimal Format can be specified by system property "decimalFormat". Default is: #,##0.0

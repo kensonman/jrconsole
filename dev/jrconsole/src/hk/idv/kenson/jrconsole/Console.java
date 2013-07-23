@@ -22,6 +22,9 @@ import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Properties;
+import java.util.PropertyResourceBundle;
+import java.util.ResourceBundle;
 
 import net.sf.jasperreports.engine.DefaultJasperReportsContext;
 import net.sf.jasperreports.engine.JRDataSource;
@@ -49,7 +52,9 @@ public class Console {
 	public static final String ARG_TEXT="_arg_text_";
 	public static final String DEFAULT_DATE_FORMAT="yyyy-MM-dd";
 	public static final String DEFAULT_DECIMAL_FORMAT="#,##0.0";
-	public static final String VERSION="v1.0";
+	public static final String VERSION="v1.1";
+	public static final String PARAM_LOCALE="REPORT_LOCALE";
+	public static final String PARAM_BUNDLE="REPORT_RESOURCE_BUNDLE";
 	private static DateFormat dateFormat;
 	private static DecimalFormat decimalFormat;
 	private static Log log=LogFactory.getLog(Console.class);
@@ -61,9 +66,6 @@ public class Console {
 	 */
 	private static void checkParam(Map<String, Object> params)throws IllegalArgumentException{
 		log.debug("Checking runtime parameters...");
-		//Checking locale
-		if(params.get("locale")==null)
-			params.put("locale", Locale.getDefault());
 		//Checking the data-source
 		if(params.get("source")==null)throw new IllegalArgumentException("Please specify the data-source");
 		if(params.get("type")==null)params.put("type", "jdbc");
@@ -95,6 +97,17 @@ public class Console {
 			params.put("output", System.getProperty("user.dir")+"/output.pdf");
 		File output=new File(params.get("output").toString());
 		if(output.exists() && !output.canWrite())throw new IllegalArgumentException("output \""+params.get("output")+"\" cannot be overwrited");
+		
+		
+		//Checking the locale and bundle
+		try{
+			if(params.get("locale")!=null)
+				params.put(PARAM_LOCALE, parseVal(params.remove("locale").toString(), null));
+			if(params.get(PARAM_LOCALE)==null)
+				params.put(PARAM_LOCALE, Locale.getDefault());
+			if(params.get("bundle")!=null)
+				params.put(PARAM_BUNDLE, parseVal(params.get("bundle").toString(), params));
+		}catch(Exception ex){throw new IllegalArgumentException("Error when reading properties/locale/resource-bundle");}
 	}
 	
 	/**
@@ -112,6 +125,23 @@ public class Console {
 	}
 
 	/**
+	 * Loading the resource bundle from file-system or classpath.
+	 * <div>Loading resource-bundle from class: classpath:/org/apache/resourceBundle</div>
+	 * <div>Loading resource-bundle file file-system: /path/to/resourceBundle.properties</div>
+	 * @param path
+	 * @param locale
+	 * @return
+	 * @throws IOException
+	 */
+	private static ResourceBundle getBundle(String path, Locale locale)throws IOException{
+		if(path==null)throw new NullPointerException("Cannot loading the resource-bundle from empty path");
+		if(path.toLowerCase().startsWith("classpath:"))
+			return ResourceBundle.getBundle(path.substring(10), locale);
+		else
+			return new PropertyResourceBundle(new FileInputStream(path));
+	}
+	
+	/**
 	 * @return the dateFormat
 	 */
 	public static DateFormat getDateFormat() {
@@ -122,7 +152,7 @@ public class Console {
 		}
 		return dateFormat;
 	}
-	
+
 	/**
 	 * @return the decimalFormat
 	 */
@@ -134,7 +164,7 @@ public class Console {
 		}
 		return decimalFormat;
 	}
-
+	
 	/**
 	 * 
 	 * @param localeString
@@ -167,6 +197,22 @@ public class Console {
 	    if (parts.length == 1) return new Locale(parts[0]);
 	    else if (parts.length == 2) return new Locale(parts[0], parts[1]);
 	    else return new Locale(parts[0], parts[1], parts[2]);
+	}
+	
+	/**
+	 * Loading the properties from file-system
+	 * @param path
+	 * @return
+	 * @throws IOException
+	 */
+	private static Properties getProperties(String path)throws IOException{
+		if(path==null)throw new NullPointerException("Cannot loading the properties from empty path");
+		Properties result=new Properties();
+		if(path.toLowerCase().endsWith(".xml"))
+			result.loadFromXML(new FileInputStream(path));
+		else
+			result.load(new FileInputStream(path));
+		return result;
 	}
 	
 	/**
@@ -225,7 +271,7 @@ public class Console {
 				if(name==null)
 					name=ARG_TEXT;
 				if(name.startsWith("D"))
-					result.put(name.substring(1), parseVal(arg));
+					result.put(name.substring(1), parseVal(arg, result));
 				else
 					result.put(name, arg);
 				name=null;
@@ -233,13 +279,14 @@ public class Console {
 		if(name!=null)result.put(name, true);
 		return result;
 	}
+	
 	/**
 	 * Parsing the string into the specified value (with right data-type)
 	 * @param arg
 	 * @return
 	 * @throws java.text.ParseException
 	 */
-	public static Object parseVal(String arg)throws java.text.ParseException{
+	public static Object parseVal(String arg, Map<String, Object> params)throws java.text.ParseException{
 			try {
 				if(arg==null)return null;
 				if(arg.startsWith("boolean:"))return Boolean.valueOf(arg.substring(8));
@@ -252,6 +299,13 @@ public class Console {
 				if(arg.startsWith("stream:"))return new URL(arg.substring(7)).openStream();
 				if(arg.startsWith("string:"))return arg.substring(7);
 				if(arg.startsWith("locale:"))return getLocale(arg.substring(7));
+				if(arg.startsWith("properties:"))return getProperties(arg.substring(11));
+				if(arg.startsWith("bundle:")){
+					Object locale=params.get(PARAM_LOCALE);
+					if(locale==null)locale=Locale.getDefault();
+					if(locale instanceof Locale)throw new IllegalArgumentException("parameter["+PARAM_LOCALE+"] is reserved for the locale specification. ");
+					return getBundle(arg.substring(7), (Locale)locale);
+				}
 				return arg;
 			} catch (MalformedURLException e) {
 				throw new ParseException("Cannot create the url: "+arg.substring(4), 0);
@@ -272,21 +326,20 @@ public class Console {
 		System.err.printf("   %-20s: %s\n", "-driver", "The jdbc driver class name");
 		System.err.printf("   %-20s: %s\n", "-source", "The datasource specification. It can be the jdbc-url or file path");
 		System.err.printf("   %-20s: %s\n", "-type", "The datasource type. It can be 'jdbc', 'csv', 'json' or 'xml'. Default is 'jdbc'");
-//		System.err.printf("   %-20s: %s\n", "-jdbc", "The database connection for generating report");
-//		System.err.printf("   %-20s: %s\n", "-csv", "The csv datasource for generating report");
-//		System.err.printf("   %-20s: %s\n", "-json", "The json datasource for generating report");
-//		System.err.printf("   %-20s: %s\n", "-xml", "The xml datasource for generating report");
 		System.err.printf("   %-20s: %s\n", "-username", "The username of the data-source");
 		System.err.printf("   %-20s: %s\n", "-password", "The password of the data-source");
 		System.err.printf("   %-20s: %s\n", "-jrxml", "The path of the jrxml file. I\'ll compile it automatically");
 		System.err.printf("   %-20s: %s\n", "-jasper", "The compiled jasper file");
 		System.err.printf("   %-20s: %s\n", "-outputtype", "The report file type. Default is PDF");
 		System.err.printf("   %-20s: %s\n", "-output", "The output path of the report");
+		System.err.printf("   %-20s: %s\n", "-locale", "The locale of the report");
+		System.err.printf("   %-20s: %s\n", "-bundle", "The resource-bundle of the report");
 		System.err.printf("   %-20s: %s\n", "-Dparam", "The parameter that passed into JasperReport");
 		System.err.printf("Supported Parameter Types:\n");
-		System.err.printf("   boolean, int, long, double, url, date, decimal, stream, string\n");
-		System.err.printf("     *Date Format can be specified by system property \"dateFormat\". Default is: %s\n", DEFAULT_DATE_FORMAT);
-		System.err.printf("     *Decimal Format can be specified by system property \"decimalFormat\". Default is: %s\n", DEFAULT_DECIMAL_FORMAT);
+		System.err.printf("   boolean, int, long, double, url, date, decimal, stream, string, properties\n");
+		System.err.printf("     * Loading properties from the path. If loading classpath properties, use \"classpath:\" prefix.");
+		System.err.printf("     * Date Format can be specified by system property \"dateFormat\". Default is: %s\n", DEFAULT_DATE_FORMAT);
+		System.err.printf("     * Decimal Format can be specified by system property \"decimalFormat\". Default is: %s\n", DEFAULT_DECIMAL_FORMAT);
 		System.err.printf("\nExamples:\n");
 		System.err.printf("   java -cp jasperreport.jar:postgresql.jar:itext.jar -DdateFormat yyyy-MM-dd -jar jrconsole.jar \\\n");
 		System.err.printf("        -type jdbc \\\n");
@@ -296,6 +349,8 @@ public class Console {
 		System.err.printf("        -jrxml /home/test/report.jrxml \\\n");
 		System.err.printf("        -output /home/test/report.pdf -outputtype pdf \\\n");
 		System.err.printf("        -Dabc boolean:true -DreportDate date:2013-01-28\n");
+		System.err.printf("        -Dproperties properties:/path/to/file.properties \\\n");
+		System.err.printf("        -DREPORT_RESOURCE_BUNDLE bundle:/path/to/file.properties \\\n");
 	}
 	
 	/**
@@ -357,7 +412,7 @@ public class Console {
 	 * @return The filled report
 	 */
 	private static JasperPrint stepFill(JasperReport report, Map<String, Object> params){
-		log.info("Filling report (with locale: "+params.get("locale")+")...");
+		log.info("Filling report (with locale: "+params.get(PARAM_LOCALE)+")...");
 		
 		try {
 			if(params.get("driver")!=null)

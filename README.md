@@ -4,6 +4,32 @@ Generate the report in command-line thru JasperReports with mininal dependencies
 
 This is the small program that generating the report using the JasperReports in command line tools. 
 
+License
+-------
+Copyright 2013 kenson.idv.hk
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+Installation
+------------
+Simply execute the Apache Ant (1.8 or above) to building the console.
+`ant build`
+
+Before you execute the applciation with database connection, you have to download the related jdbc driver by yourself.
+You can paste it into the `lib` folder. It will make the ant execution work.
+
+And also, you have to export the related fonts (that used in your report) in a jar and put it into your classpath.
 
 Usage
 -----
@@ -15,6 +41,9 @@ Showing the version number of JRConsole
 
 Showing the help menu
    `java -jar jrconsole.jar -help`
+
+Executing the application in ant (It will load all jar files, which located in the lib folder, into your classpath automatically)
+   `ant run [-jvmargs [-DdateFormat|-DdecimalFormat]] -args <Options>`
 
 Options
 -------

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<project name="jrconsole" default="build" basedir=".">
+	<description>"jrconsole" is an application that compile,filling,export the jasperreports by command-line-interface.</description>
+
+	<property name="dir.src" location="src"/>
+	<property name="dir.dest" location="dest"/>
+	<property name="dir.bin" location="bin"/>
+	<property name="dir.lib" location="lib"/>
+	<property name="jvmargs" value="-DdateFormat=yyyy-MM-dd"/>
+	<property name="args" value=""/>
+	<path id="classpath">
+		<fileset dir="${dir.lib}">
+			<include name="**/*.jar"/>
+			<include name="**/*.zip"/>
+		</fileset>
+	</path>
+	<pathconvert property="manifest.classpath" pathsep=" ">
+		<path refid="classpath"/>
+	</pathconvert>
+
+	<target name="init">
+		<mkdir dir="${dir.bin}"/>
+	</target>
+
+	<target name="build" depends="init" description=" &gt;Compile and Package the library">
+		<antcall target="clean"/>
+		<antcall target="compile"/>
+		<antcall target="package"/>
+	</target>
+
+	<target name="compile" depends="init" description=" &gt;Compile the java source file">
+		<javac srcdir="${dir.src}" destdir="${dir.bin}" classpathref="classpath"/>
+
+		<copy todir="${dir.bin}">
+			<fileset dir="${dir.src}">
+				<exclude name="**/*.java"/>
+			</fileset>
+		</copy>
+	</target>
+
+	<target name="package" depends="init" description=" &gt;Package the class file">
+		<jar destfile="${dir.dest}/jrconsole.jar" basedir="${dir.bin}">
+			 <manifest>
+				<attribute name="Main-Class" value="hk.idv.kenson.jrconsole.Console"/>
+				<attribute name="Class-Path" value="${manifest.classpath}"/>
+			</manifest>
+		</jar>
+	</target>
+
+	<target name="run" depends="build" description=" &gt;Building the jar and running it. Use the -Djvmargs to specify JVM args. Use the -Dargs to specify java runtime args.">
+		<echo>Execute the application with JVM-args: "${jvmargs}" and args: "${args}"</echo>
+		<java jar="${dir.dest}/jrconsole.jar" fork="true">
+			<jvmarg line="${jvmargs}"/>
+			<arg line="${args}"/>
+		</java>
+	</target>
+
+	<target name="clean" depends="init" description=" &gt;Cleanning the building">
+		<delete dir="${dir.bin}"/>
+		<delete dir="${dir.dest}"/>
+	</target>
+</project>
